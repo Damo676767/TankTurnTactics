@@ -1,67 +1,90 @@
-﻿using Discord;
+﻿using System;
+using Discord;
+using Discord.Net;
+using Discord.Commands;
 using Discord.WebSocket;
-using System;
-using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
+using Microsoft.Extensions.DependencyInjection;
+
+using Tank_Turn_Tactics.Services;
 
 namespace Tank_Turn_Tactics
 {
 	public class Program
 	{
-		public static void Main(string[] args)
-			=> new Program().MainAsync().GetAwaiter().GetResult();
-
+        private readonly IConfiguration _config;
         private DiscordSocketClient _client;
+
+        static void Main(string[] args)
+        {
+            new Program().MainAsync().GetAwaiter().GetResult();
+        }
+
+        public Program()
+        {
+            // create the configuration
+            var _builder = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile(path: "config.json");
+
+            // build the configuration and assign to _config          
+            _config = _builder.Build();
+        }
 
         public async Task MainAsync()
         {
-            _client = new DiscordSocketClient();
-            _client.MessageReceived += OnMessageReceived;
-            _client.Log += Log;
-            _client.Ready += ReadyAsync;
+            // call ConfigureServices to create the ServiceCollection/Provider for passing around the services
+            using (var services = ConfigureServices())
+            {
+                // get the client and assign to client 
+                // you get the services via GetRequiredService<T>
+                var client = services.GetRequiredService<DiscordSocketClient>();
+                _client = client;
 
+                // setup logging and the ready event
+                client.Log += LogAsync;
+                client.Ready += ReadyAsync;
+                services.GetRequiredService<CommandService>().Log += LogAsync;
 
-            var token = File.ReadAllText("token.txt");
+                // this is where we get the Token value from the configuration file, and start the bot
+                await client.LoginAsync(TokenType.Bot, _config["Token"]);
+                await client.StartAsync();
 
-            await _client.LoginAsync(TokenType.Bot, token);
-            await _client.StartAsync();
+                // we get the CommandHandler class here and call the InitializeAsync method to start things up for the CommandHandler service
+                await services.GetRequiredService<CommandHandler>().InitializeAsync();
 
-            // Block this task until the program is closed.
-            await Task.Delay(-1);
+                await Task.Delay(-1);
+            }
         }
 
-        private Task OnMessageReceived(SocketMessage message)
+        private Task LogAsync(LogMessage log)
         {
-            if (!message.Content.StartsWith('!'))
-            {
-                return Task.CompletedTask;
-            }
-
-            if (message.Author.IsBot)
-            {
-                return Task.CompletedTask;
-            }
-
-            var command = (message.Content.Contains(' ') ? message.Content.Substring(1, message.Content.IndexOf(' ') - 1) : message.Content.Substring(1)).ToLower();
-
-            if (command == "hi")
-            {
-                message.Channel.SendMessageAsync("Gday");
-            }
-       
+            Console.WriteLine(log.ToString());
             return Task.CompletedTask;
         }
-
-        private Task Log(LogMessage msg)
-		{
-			Console.WriteLine(msg.ToString());
-			return Task.CompletedTask;
-		}
 
         private Task ReadyAsync()
         {
             Console.WriteLine($"Connected as -> [] :)");
             return Task.CompletedTask;
         }
+
+        // this method handles the ServiceCollection creation/configuration, and builds out the service provider we can call on later
+        private ServiceProvider ConfigureServices()
+        {
+            // this returns a ServiceProvider that is used later to call for those services
+            // we can add types we have access to here, hence adding the new using statement:
+            // using csharpi.Services;
+            // the config we build is also added, which comes in handy for setting the command prefix!
+            return new ServiceCollection()
+                .AddSingleton(_config)
+                .AddSingleton<DiscordSocketClient>()
+                .AddSingleton<CommandService>()
+                .AddSingleton<CommandHandler>()
+                .BuildServiceProvider();
+        }
     }
 }
+
