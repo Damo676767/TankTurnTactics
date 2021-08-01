@@ -18,6 +18,8 @@ namespace Tank_Turn_Tactics
             _client = new DiscordSocketClient();
             _client.MessageReceived += OnMessageReceived;
             _client.Log += Log;
+            _client.Ready += ReadyAsync;
+
 
             var token = File.ReadAllText("token.txt");
 
@@ -55,5 +57,11 @@ namespace Tank_Turn_Tactics
 			Console.WriteLine(msg.ToString());
 			return Task.CompletedTask;
 		}
-	}
+
+        private Task ReadyAsync()
+        {
+            Console.WriteLine($"Connected as -> [] :)");
+            return Task.CompletedTask;
+        }
+    }
 }
