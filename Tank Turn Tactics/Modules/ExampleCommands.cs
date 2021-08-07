@@ -23,12 +23,15 @@ namespace Tank_Turn_Tactics.Modules
             var user = Context.User;
 
             // build out the reply
-            sb.AppendLine("Gday");
+            sb.AppendLine("Gday " + user.Username);
 
             // send simple string reply
             await ReplyAsync(sb.ToString());
         }
 
+
+
+    
 
     }
 }
